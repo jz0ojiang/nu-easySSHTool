@@ -28,7 +28,7 @@
 1. **克隆仓库**：
    
    ```bash
-   git clone https://github.com/jz0ojiang/easySSHTool.git
+   git clone https://github.com/jz0ojiang/nu-easySSHTool.git
    ```
 
 2. **在 Nushell 配置文件中加载模块**：

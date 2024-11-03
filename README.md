@@ -28,7 +28,7 @@ You can adjust these paths and options in the `config` according to your needs.
 1. **Clone the repository**:
    
    ```bash
-   git clone https://github.com/jz0ojiang/easySSHTool.git
+   git clone https://github.com/jz0ojiang/nu-easySSHTool.git
    ```
 
 2. **Load the module in the Nushell configuration file**:
