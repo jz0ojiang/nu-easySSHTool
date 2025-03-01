@@ -150,6 +150,10 @@ module easySSHTool {
       [{ value: "display_name", description: "服务器名称" }, {}]
   }
 
+  def description_helper [context: string] {
+      [{ value: "description", description: "设置备注" }, {}]
+  }
+
   def covered [] {
       # usr@addr => ***@***
       $in | into string | str replace --regex ".*@" "***@" | str replace --regex --all "[^@]" "*"
@@ -313,9 +317,10 @@ module easySSHTool {
       keyword: any = null,
       command: any = null, 
       name?,
+      desc? = ""
   ] {
       if ($command | is-empty) or ($keyword | is-empty) {
-          print "Usage: ssh-add <command> <keyword> [name]"
+          print "Usage: easy-ssh-tool add <keyword> <command> [name] [desc]"
           return
       }
       if $keyword in (servers | columns) {
@@ -327,12 +332,21 @@ module easySSHTool {
               }
           }
       }
+      if $keyword in ["list", "add", "remove", "config", "connect", "help"] {
+          error make {
+              msg: "Keyword is reserved",
+              label: {
+                  text: "reserved keyword",
+                  span: $span
+              }
+          }
+      }
       let server = {
           command: $command,
           keyword: $keyword,
           name: (if ($name | is-empty) { $keyword } else { $name | into string })
       }
-      servers | upsert $keyword ({name: $server.name, ...($server.command | parse_ssh)} | record_remove_null) | save ($config.server_list | path expand) -f
+      servers | upsert $keyword ({name: $server.name, ...($server.command | parse_ssh), desc: $desc} | record_remove_null) | save ($config.server_list | path expand) -f
       print $"Added server: ($name) with keyword: ($keyword)"
       [[keyword name];[$keyword $server.name]] | merge [($server.command | parse_ssh)] | update cells {|v| $v | default "N/A" }
       # [[Keyword Name];[$keyword $server.name]]
@@ -343,17 +357,40 @@ module easySSHTool {
       keyword: any = null, 
   ] {
       if ($keyword | is-empty) {
-          print "Usage: ssh-remove <keyword>"
+          print "Usage: easy-ssh-tool remove <keyword>"
           return
       }
       servers | reject $keyword | save ($config.server_list | path expand) -f
   }
   
+  def cmd_desc [
+      keyword: any = null,
+      description: string = ""
+  ] {
+      if ($keyword | is-empty) {
+          print "Usage: easy-ssh-tool desc <keyword> [description]"
+          return
+      }
+      let conf = servers | get $keyword
+      if ($conf | is-empty) {
+          error make {
+              msg: "Keyword not found",
+              label: {
+                  text: "not found",
+                  span: (metadata $keyword).span
+              }
+          }
+      }
+      servers | upsert $keyword ($conf | upsert desc $description) | save ($config.server_list | path expand) -f
+      print $"Updated description for ($keyword)"
+  }
+
   export def "easy-ssh-tool" [
-      action = "list": string@helper # action (list|add|remove|edit|connect) or connect to server
+      action = "list": string@helper # action (list|add|remove|connect|config) or connect to server
       server?: string@sub_helper # server keyword
       command?: string@command_helper # ssh command
       name?: string@name_helper # server name
+      description?: string@description_helper # server description
       --unsafe(-u) # disable safemode or not, default is false (follow config)
       ...args
   ] {
@@ -365,6 +402,7 @@ module easySSHTool {
           "list" => { cmd_list --unsafe=$u }
           "add" => { cmd_add (metadata $server).span $server $command $name }
           "remove" => { cmd_remove $server }
+          "desc" => { cmd_desc $server $command } # $command here is description
           "config" => { cmd_config }
           "connect" => { connect $server --span=(metadata $action).span }
           "help" => { est --help }
